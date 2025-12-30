@@ -1,34 +1,43 @@
 import streamlit as st
 import google.generativeai as genai
+import json
+import os
 
-# Заглавие на приложението
-st.title("🐰 Чат с Джуди Хопс")
+# 1. Настройка на AI
+genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+model = genai.GenerativeModel('gemini-2.5-flash-lite')
 
-# Настройка на ключа - Провери дали името в кавичките съвпада с това в Secrets!
-try:
-    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+# 2. Функция за зареждане на паметта (JSON)
+def load_memory():
+    if os.path.exists('memory.json'):
+        with open('memory.json', 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return []
+
+# 3. Функция за записване
+def save_memory(messages):
+    with open('memory.json', 'w', encoding='utf-8') as f:
+        json.dump(messages, f, ensure_status=False, indent=4)
+
+# Инициализация на чата
+if "messages" not in st.session_state:
+    st.session_state.messages = load_memory()
+
+# Показване на историята
+for msg in st.session_state.messages:
+    st.chat_message(msg["role"]).write(msg["content"])
+
+# Писане на ново съобщение
+if prompt := st.chat_input("Кажи нещо на Джуди..."):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    st.chat_message("user").write(prompt)
     
-    # Пълното име на модела за по-сигурно
-    model = genai.GenerativeModel('models/gemini-2.5-flash-lite') 
+    # Джуди отговаря, като знае историята (Memory)
+    full_history = str(st.session_state.messages)
+    response = model.generate_content(f"Ти си Джуди Хопс. Това е историята ни досега: {full_history}. Отговори на: {prompt}")
     
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
-
-    if prompt := st.chat_input("Напиши нещо на Джуди..."):
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
-
-        with st.chat_message("assistant"):
-            # Тук добавяме инструкции за личността на Джуди
-            full_prompt = f"Ти си Джуди Хопс от Зоотрополис. Отговори на Ник: {prompt}"
-            response = model.generate_content(full_prompt)
-            st.markdown(response.text)
-            st.session_state.messages.append({"role": "assistant", "content": response.text})
-
-except Exception as e:
-    st.error(f"Грешка при свързването: {e}")
+    st.session_state.messages.append({"role": "assistant", "content": response.text})
+    st.chat_message("assistant").write(response.text)
+    
+    # ЗАПИСВАНЕ
+    save_memory(st.session_state.messages)
