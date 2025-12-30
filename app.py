@@ -71,7 +71,7 @@ st.title("🐰 Джуди Хопс: Обща памет")
 st.caption("🚨 Патрулът е онлайн. Синхронизирано с Google Drive.")
 
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-2.5-flash-lite')
 
 if "old_context" not in st.session_state:
     st.session_state.old_context = load_html_memories()
