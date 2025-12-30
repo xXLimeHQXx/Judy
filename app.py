@@ -12,7 +12,7 @@ import base64
 
 # --- ПРЕДВАРИТЕЛНА НАСТРОЙКА (ID НА ПАПКАТА) ---
 # ТУК ПОСТАВИ ID-ТО НА ТВОЯТА ПАПКА Judy_Project ОТ DRIVE ЛИНКА
-FOLDER_ID = "1FRqyZjVgT8G9cQNi1JsyXGfA5CV3mgZ9?sort=13&direction=a"
+FOLDER_ID = "1FRqyZjVgT8G9cQNi1JsyXGfA5CV3mgZ9"
 
 # --- 1. СИГУРНОСТ И CLOUD DRIVE ВРЪЗКА ---
 def setup_drive_cloud():
