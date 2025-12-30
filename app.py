@@ -4,38 +4,46 @@ import json
 import os
 import glob
 from bs4 import BeautifulSoup
-from pydrive2.auth import GoogleAuth
-from pydrive2.drive import GoogleDrive
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
+from gtts import gTTS
+import base64
 
-# --- 1. СИГУРНОСТ И DRIVE ВРЪЗКА ---
-def setup_drive():
+# --- ПРЕДВАРИТЕЛНА НАСТРОЙКА (ID НА ПАПКАТА) ---
+# ТУК ПОСТАВИ ID-ТО НА ТВОЯТА ПАПКА Judy_Project ОТ DRIVE ЛИНКА
+FOLDER_ID = "1aBcDeFgHiJkLmNoPqRsTuVwXyZ" 
+
+# --- 1. СИГУРНОСТ И CLOUD DRIVE ВРЪЗКА ---
+def setup_drive_cloud():
     try:
-        # Създаваме временен файл за библиотеката от твоите Secrets
-        secrets_dict = json.loads(st.secrets["CLIENT_SECRETS_JSON"])
-        with open("client_secrets.json", "w") as f:
-            json.dump(secrets_dict, f)
-        
-        gauth = GoogleAuth()
-        gauth.LoadClientConfigFile("client_secrets.json")
-        
-        # Опит за автоматично логване (ако имаш mycreds.txt)
-        if os.path.exists("mycreds.txt"):
-            gauth.LoadCredentialsFile("mycreds.txt")
-        
-        if gauth.credentials is None:
-            # Това ще изпише инструкции в Manage App -> Logs
-            print("Нужна е оторизация в Google Drive!")
-        elif gauth.access_token_expired:
-            gauth.Refresh()
-        else:
-            gauth.Authorize()
-            
-        return GoogleDrive(gauth)
+        # Използваме предоставения от теб Service Account JSON от Secrets
+        info = json.loads(st.secrets["GCP_SERVICE_ACCOUNT_JSON"])
+        creds = service_account.Credentials.from_service_account_info(info)
+        service = build('drive', 'v3', credentials=creds)
+        return service
     except Exception as e:
-        st.error(f"Проблем с Drive връзката: {e}")
+        st.error(f"Грешка при Cloud връзка: {e}")
         return None
 
-# --- 2. ЗАРЕЖДАНЕ НА СТАРИТЕ HTML СПОМЕНИ ---
+# --- 2. ФУНКЦИЯ ЗА ГЛАС (TTS) ---
+def speak_text(text):
+    try:
+        tts = gTTS(text=text, lang='bg')
+        tts.save("response.mp3")
+        with open("response.mp3", "rb") as f:
+            data = f.read()
+            b64 = base64.b64encode(data).decode()
+            md = f"""
+                <audio autoplay="true">
+                <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
+                </audio>
+                """
+            st.markdown(md, unsafe_allow_html=True)
+    except:
+        pass
+
+# --- 3. ЗАРЕЖДАНЕ НА HTML СПОМЕНИ ---
 def load_html_memories():
     combined_text = ""
     html_files = glob.glob("*.html")
@@ -48,49 +56,71 @@ def load_html_memories():
             continue
     return combined_text
 
-# --- 3. НАСТРОЙКА НА AI (JUDY) ---
+# --- 4. НАСТРОЙКА НА UI И AI ---
+st.set_page_config(page_title="Джуди Хопс - Патрул", page_icon="🐰", layout="centered")
+
+# Красив UI с CSS
+st.markdown("""
+    <style>
+    .stApp { background-color: #f0f2f6; }
+    .stChatMessage { border-radius: 15px; border: 1px solid #ddd; margin-bottom: 10px; }
+    </style>
+    """, unsafe_allow_html=True)
+
+st.title("🐰 Джуди Хопс: Обща памет")
+st.caption("🚨 Патрулът е онлайн. Синхронизирано с Google Drive.")
+
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-model = genai.GenerativeModel('gemini-2.5-flash-lite')
+model = genai.GenerativeModel('gemini-1.5-flash')
 
-st.set_page_config(page_title="Чат с Джуди", page_icon="🐰")
-st.title("🐰 Джуди: Обща памет (Cloud + Drive)")
-
-# Инициализиране на паметта
 if "old_context" not in st.session_state:
     st.session_state.old_context = load_html_memories()
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Показване на историята на екрана
+# Показване на чата
 for msg in st.session_state.messages:
-    st.chat_message(msg["role"]).write(msg["content"])
+    with st.chat_message(msg["role"]):
+        st.write(msg["content"])
 
-# --- 4. ЧАТ И ЗАПИСВАНЕ ---
-if prompt := st.chat_input("Напиши нещо на Джуди..."):
-    # Показваме съобщението на Ник
+# --- 5. ЧАТ И СИНХРОНИЗАЦИЯ ---
+if prompt := st.chat_input("Докладвай на Джуди..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
-    st.chat_message("user").write(prompt)
+    with st.chat_message("user"):
+        st.write(prompt)
     
-    # Джуди мисли (използвайки стария HTML контекст и текущия чат)
-    full_prompt = f"Ти си Джуди Хопс. Твоите стари спомени са: {st.session_state.old_context}. Сега разговаряш с Ник. История: {st.session_state.messages}. Отговори на: {prompt}"
+    # AI логика
+    full_prompt = f"Ти си Джуди Хопс от Зотрополис. Твоите спомени: {st.session_state.old_context}. История: {st.session_state.messages}. Отговори на Ник кратко и ентусиазирано: {prompt}"
     
-    response = model.generate_content(full_prompt)
-    st.session_state.messages.append({"role": "assistant", "content": response.text})
-    st.chat_message("assistant").write(response.text)
-    
-    # Локално записване в JSON
+    with st.spinner("Джуди мисли..."):
+        response = model.generate_content(full_prompt)
+        st.session_state.messages.append({"role": "assistant", "content": response.text})
+        
+    with st.chat_message("assistant"):
+        st.write(response.text)
+        speak_text(response.text) # Джуди говори
+
+    # Запис в Drive (Cloud начин)
     with open('memory.json', 'w', encoding='utf-8') as f:
         json.dump(st.session_state.messages, f, ensure_ascii=False, indent=4)
-    
-    # Опит за качване в Google Drive
-    drive = setup_drive()
-    if drive:
+
+    drive_service = setup_drive_cloud()
+    if drive_service:
         try:
-            file_list = drive.ListFile({'q': "title='memory.json'"}).GetList()
-            file_drive = file_list[0] if file_list else drive.CreateFile({'title': 'memory.json'})
-            file_drive.SetContentFile('memory.json')
-            file_drive.Upload()
-            st.toast("Паметта е синхронизирана с Drive! ☁️")
+            file_metadata = {'name': 'memory.json', 'parents': [FOLDER_ID]}
+            media = MediaFileUpload('memory.json', mimetype='application/json')
+            
+            # Търсене за обновяване
+            query = f"name = 'memory.json' and '{FOLDER_ID}' in parents"
+            results = drive_service.files().list(q=query).execute()
+            files = results.get('files', [])
+
+            if files:
+                drive_service.files().update(fileId=files[0]['id'], media_body=media).execute()
+            else:
+                drive_service.files().create(body=file_metadata, media_body=media).execute()
+            
+            st.toast("Паметта е в облака! ☁️")
         except Exception as e:
-            st.warning(f"Записано локално, но не и в Drive: {e}")
+            st.warning(f"Локален запис: {e}")
