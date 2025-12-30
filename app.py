@@ -9,7 +9,7 @@ try:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     
     # Пълното име на модела за по-сигурно
-    model = genai.GenerativeModel('models/gemini-1.5-flash') 
+    model = genai.GenerativeModel('models/gemini-2.5-flash-lite') 
     
     if "messages" not in st.session_state:
         st.session_state.messages = []
