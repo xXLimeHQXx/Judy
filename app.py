@@ -5,7 +5,7 @@ st.set_page_config(page_title="Judy Chat", page_icon="🐰")
 st.title("🐰 Чат с Джуди")
 
 # Настройка на AI
-genai.configure(st.secrets["GOOGLE_API_KEY"])
+genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 model = genai.GenerativeModel('gemini-1.5-flash')
 
 # Прост чат интерфейс
