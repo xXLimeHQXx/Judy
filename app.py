@@ -26,6 +26,13 @@ def save_to_drive(filename):
     file_drive.SetContentFile(filename)
     file_drive.Upload()
 
+# Създаваме временен файл за библиотеката Pydrive
+with open("client_secrets.json", "w") as f:
+    f.write(st.secrets["CLIENT_SECRETS_JSON"])
+
+gauth = GoogleAuth()
+gauth.LoadClientConfigFile("client_secrets.json")
+
 # --- Инициализация на паметта ---
 if "messages" not in st.session_state:
     # Тук можеш да добавиш код, който първо тегли файла от Drive
